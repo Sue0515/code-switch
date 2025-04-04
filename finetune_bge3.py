@@ -239,12 +239,11 @@ class CodeSwitchLoss(nn.Module):
         total_loss = contrastive_loss + 0.5 * cs_reg_loss
         
         # Return loss components for analysis
-        return total_loss / batch_size, {
-            "contrastive_loss": (contrastive_loss / batch_size).item(),
-            "cs_reg_loss": (cs_reg_loss / batch_size).item() if cs_ratios is not None else 0.0,
-            "total_loss": (total_loss / batch_size).item()
+        components = {
+            "contrastive_loss": float(contrastive_loss) if isinstance(contrastive_loss, torch.Tensor) else contrastive_loss,
+            "cs_reg_loss": float(cs_reg_loss) if isinstance(cs_reg_loss, torch.Tensor) else cs_reg_loss,
+            "total_loss": float(total_loss) if isinstance(total_loss, torch.Tensor) else total_loss
         }
-
 class RefinedCodeSwitchLoss(nn.Module):
     def __init__(self, temperature=0.1, lambda_cs_reg=0.5):
         super(RefinedCodeSwitchLoss, self).__init__()
@@ -352,9 +351,9 @@ class RefinedCodeSwitchLoss(nn.Module):
         
         # Return both total loss and components for tracking
         components = {
-            "contrastive_loss": contrastive_loss.item(),
-            "cs_reg_loss": cs_reg_loss.item() if cs_ratios is not None else 0.0,
-            "total_loss": total_loss.item()
+            "contrastive_loss": float(contrastive_loss) if isinstance(contrastive_loss, torch.Tensor) else contrastive_loss,
+            "cs_reg_loss": float(cs_reg_loss) if isinstance(cs_reg_loss, torch.Tensor) else cs_reg_loss,
+            "total_loss": float(total_loss) if isinstance(total_loss, torch.Tensor) else total_loss
         }
         
         return total_loss, components
@@ -888,7 +887,7 @@ def main():
     # For comparison, fine-tune with different loss functions
     loss_types = ["refined", "custom", "codeswitch"]
     loss_type = loss_types[0]
-    
+
     finetuner = EmbeddingFinetuner()
     loss_history = finetuner.finetune(dataloader, loss_type=loss_type, num_epochs=10, lr=1e-5)
         
