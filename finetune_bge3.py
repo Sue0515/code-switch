@@ -244,6 +244,7 @@ class CodeSwitchLoss(nn.Module):
             "cs_reg_loss": float(cs_reg_loss) if isinstance(cs_reg_loss, torch.Tensor) else cs_reg_loss,
             "total_loss": float(total_loss) if isinstance(total_loss, torch.Tensor) else total_loss
         }
+
 class RefinedCodeSwitchLoss(nn.Module):
     def __init__(self, temperature=0.1, lambda_cs_reg=0.5):
         super(RefinedCodeSwitchLoss, self).__init__()
@@ -572,29 +573,130 @@ class EmbeddingFinetuner:
     
     def plot_loss_history(self, loss_type):
         """Plot loss components during training"""
-        plt.figure(figsize=(12, 6))
+        try:
+            print(f"Plotting loss history for {loss_type} loss...")
+            
+            # Verify results directory exists and is writable
+            if not os.path.exists(self.results_dir):
+                print(f"Creating results directory: {self.results_dir}")
+                os.makedirs(self.results_dir, exist_ok=True)
+            
+            # Create figure
+            plt.figure(figsize=(12, 6))
+            
+            # Verify loss history data
+            if not self.loss_history["epoch"]:
+                print("Warning: No epochs in loss history. Nothing to plot.")
+                return
+                
+            print(f"Plotting data for {len(self.loss_history['epoch'])} epochs")
+            
+            # Plot total loss
+            plt.plot(self.loss_history["epoch"], self.loss_history["total_loss"], 
+                    'o-', linewidth=2, label='Total Loss', color='navy')
+            
+            # Define colors for different loss components
+            colors = {
+                "contrastive_loss": "forestgreen",
+                "cs_reg_loss": "darkorange",
+                "cohesion_loss": "darkred",
+                "separation_loss": "purple"
+            }
+            
+            # Plot loss components that have values
+            for component in ["contrastive_loss", "cs_reg_loss", "cohesion_loss", "separation_loss"]:
+                if component in self.loss_history and any(self.loss_history[component]):
+                    print(f"Plotting {component} component")
+                    plt.plot(self.loss_history["epoch"], self.loss_history[component], 
+                            'o-', linewidth=2, 
+                            label=component.replace('_', ' ').title(),
+                            color=colors.get(component, None))
+                else:
+                    print(f"Skipping {component} component (no data)")
+            
+            plt.title(f'Training Loss ({loss_type})', fontsize=15)
+            plt.xlabel('Epoch', fontsize=12)
+            plt.ylabel('Loss', fontsize=12)
+            plt.grid(True, linestyle='--', alpha=0.7)
+            plt.legend(fontsize=10)
+            plt.tight_layout()
+            
+            # Save figure
+            save_path = f"{self.results_dir}/loss_history_{loss_type}.png"
+            print(f"Saving loss history plot to {save_path}")
+            
+            try:
+                plt.savefig(save_path)
+                print(f"Successfully saved loss history plot to {save_path}")
+            except Exception as e:
+                print(f"Error saving loss history plot to {save_path}: {e}")
+                
+                # Try alternate location as fallback
+                alt_path = f"./loss_history_{loss_type}.png"
+                print(f"Trying to save to alternate location: {alt_path}")
+                try:
+                    plt.savefig(alt_path)
+                    print(f"Successfully saved loss history plot to {alt_path}")
+                except Exception as e2:
+                    print(f"Error saving to alternate location: {e2}")
+            
+            # Save loss data as CSV for backup
+            try:
+                csv_path = f"{self.results_dir}/loss_history_{loss_type}.csv"
+                print(f"Saving loss data to CSV: {csv_path}")
+                
+                with open(csv_path, 'w') as f:
+                    # Write header
+                    header = ['epoch'] + [comp for comp in self.loss_history.keys() if comp != 'epoch']
+                    f.write(','.join(header) + '\n')
+                    
+                    # Write data rows
+                    for i, epoch in enumerate(self.loss_history['epoch']):
+                        row = [str(epoch)]
+                        for comp in header[1:]:
+                            if i < len(self.loss_history[comp]):
+                                row.append(f"{self.loss_history[comp][i]:.6f}")
+                            else:
+                                row.append("N/A")
+                        f.write(','.join(row) + '\n')
+                        
+                print(f"Successfully saved loss data to {csv_path}")
+            except Exception as e:
+                print(f"Error saving loss data to CSV: {e}")
+            
+            plt.close()
+            print("Loss history plotting complete")
+            
+        except Exception as e:
+            print(f"Error in plot_loss_history: {e}")
+            import traceback
+            traceback.print_exc()
+
+    # def plot_loss_history(self, loss_type):
+    #     """Plot loss components during training"""
+    #     plt.figure(figsize=(12, 6))
         
-        # Plot total loss
-        plt.plot(self.loss_history["epoch"], self.loss_history["total_loss"], 
-                 'o-', linewidth=2, label='Total Loss')
+    #     # Plot total loss
+    #     plt.plot(self.loss_history["epoch"], self.loss_history["total_loss"], 
+    #              'o-', linewidth=2, label='Total Loss')
         
-        # Plot loss components that have values
-        for component in ["contrastive_loss", "cs_reg_loss", "cohesion_loss", "separation_loss"]:
-            if component in self.loss_history and any(self.loss_history[component]):
-                plt.plot(self.loss_history["epoch"], self.loss_history[component], 
-                        'o-', linewidth=2, label=component.replace('_', ' ').title())
+    #     # Plot loss components that have values
+    #     for component in ["contrastive_loss", "cs_reg_loss", "cohesion_loss", "separation_loss"]:
+    #         if component in self.loss_history and any(self.loss_history[component]):
+    #             plt.plot(self.loss_history["epoch"], self.loss_history[component], 
+    #                     'o-', linewidth=2, label=component.replace('_', ' ').title())
         
-        plt.title(f'Training Loss ({loss_type})', fontsize=15)
-        plt.xlabel('Epoch', fontsize=12)
-        plt.ylabel('Loss', fontsize=12)
-        plt.grid(True, linestyle='--', alpha=0.7)
-        plt.legend(fontsize=10)
-        plt.tight_layout()
+    #     plt.title(f'Training Loss ({loss_type})', fontsize=15)
+    #     plt.xlabel('Epoch', fontsize=12)
+    #     plt.ylabel('Loss', fontsize=12)
+    #     plt.grid(True, linestyle='--', alpha=0.7)
+    #     plt.legend(fontsize=10)
+    #     plt.tight_layout()
         
-        # Save figure
-        plt.savefig(f"{self.results_dir}/loss_history_{loss_type}.png")
-        plt.close()
-    
+    #     # Save figure
+    #     plt.savefig(f"{self.results_dir}/loss_history_{loss_type}.png")
+    #     plt.close()
+
     def visualize_embeddings(self, embeddings, title="Embeddings Visualization", method="pca"):
         """
         Visualize embeddings using dimensionality reduction
@@ -604,272 +706,660 @@ class EmbeddingFinetuner:
             title: Title for the plot
             method: 'pca' or 'tsne'
         """
-        # Stack all embeddings
-        stacked_embs = np.vstack([embeddings[k] for k in embeddings])
+        try:
+            print(f"Visualizing embeddings using {method}...")
+            
+            # Stack all embeddings
+            stacked_embs = np.vstack([embeddings[k] for k in embeddings])
+            print(f"Stacked embeddings shape: {stacked_embs.shape}")
+            
+            # Apply dimensionality reduction
+            if method == "pca":
+                print("Applying PCA...")
+                reducer = PCA(n_components=2)
+                reduced_embs = reducer.fit_transform(stacked_embs)
+                explained_var = reducer.explained_variance_ratio_
+                method_name = "PCA"
+                subtitle = f"(Explained variance: {explained_var[0]:.2%}, {explained_var[1]:.2%})"
+                print(f"PCA complete. Explained variance: {explained_var[0]:.2%}, {explained_var[1]:.2%}")
+            elif method == "tsne":
+                print("Applying t-SNE (this may take a while)...")
+                reducer = TSNE(n_components=2, perplexity=30, n_iter=1000, random_state=42)
+                reduced_embs = reducer.fit_transform(stacked_embs)
+                method_name = "t-SNE"
+                subtitle = ""
+                print("t-SNE complete.")
+            else:
+                raise ValueError(f"Unknown visualization method: {method}")
+            
+            # Split reduced embeddings back by language
+            start_idx = 0
+            reduced_by_lang = {}
+            for lang, embs in embeddings.items():
+                end_idx = start_idx + embs.shape[0]
+                reduced_by_lang[lang] = reduced_embs[start_idx:end_idx]
+                start_idx = end_idx
+            
+            # Plotting
+            plt.figure(figsize=(10, 8))
+            
+            # Define colors and markers
+            colors = {
+                "english": "blue",
+                "etok": "green",
+                "ktoe": "red",
+                "korean": "purple"
+            }
+            
+            markers = {
+                "english": "o",
+                "etok": "s",
+                "ktoe": "^",
+                "korean": "D"
+            }
+            
+            # Plot each language variant
+            for lang, embs in reduced_by_lang.items():
+                plt.scatter(
+                    embs[:, 0], embs[:, 1],
+                    color=colors[lang],
+                    marker=markers[lang],
+                    label=lang.capitalize(),
+                    alpha=0.7,
+                    s=70
+                )
+            
+            plt.title(f"{title}\n{method_name} {subtitle}", fontsize=15)
+            plt.xlabel(f"{method_name} Component 1", fontsize=12)
+            plt.ylabel(f"{method_name} Component 2", fontsize=12)
+            plt.grid(True, linestyle='--', alpha=0.3)
+            plt.legend(fontsize=10)
+            plt.tight_layout()
+            
+            print(f"Plot created for {method} visualization.")
+            return plt
         
-        # Apply dimensionality reduction
-        if method == "pca":
-            reducer = PCA(n_components=2)
-            reduced_embs = reducer.fit_transform(stacked_embs)
-            explained_var = reducer.explained_variance_ratio_
-            method_name = "PCA"
-            subtitle = f"(Explained variance: {explained_var[0]:.2%}, {explained_var[1]:.2%})"
-        elif method == "tsne":
-            reducer = TSNE(n_components=2, perplexity=30, n_iter=1000, random_state=42)
-            reduced_embs = reducer.fit_transform(stacked_embs)
-            method_name = "t-SNE"
-            subtitle = ""
-        else:
-            raise ValueError(f"Unknown visualization method: {method}")
-        
-        # Split reduced embeddings back by language
-        start_idx = 0
-        reduced_by_lang = {}
-        for lang, embs in embeddings.items():
-            end_idx = start_idx + embs.shape[0]
-            reduced_by_lang[lang] = reduced_embs[start_idx:end_idx]
-            start_idx = end_idx
-        
-        # Plotting
-        plt.figure(figsize=(10, 8))
-        
-        # Define colors and markers
-        colors = {
-            "english": "blue",
-            "etok": "green",
-            "ktoe": "red",
-            "korean": "purple"
-        }
-        
-        markers = {
-            "english": "o",
-            "etok": "s",
-            "ktoe": "^",
-            "korean": "D"
-        }
-        
-        # Plot each language variant
-        for lang, embs in reduced_by_lang.items():
-            plt.scatter(
-                embs[:, 0], embs[:, 1],
-                color=colors[lang],
-                marker=markers[lang],
-                label=lang.capitalize(),
-                alpha=0.7,
-                s=70
-            )
-        
-        plt.title(f"{title}\n{method_name} {subtitle}", fontsize=15)
-        plt.xlabel(f"{method_name} Component 1", fontsize=12)
-        plt.ylabel(f"{method_name} Component 2", fontsize=12)
-        plt.grid(True, linestyle='--', alpha=0.3)
-        plt.legend(fontsize=10)
-        plt.tight_layout()
-        
-        return plt
-    
+        except Exception as e:
+            print(f"Error in visualize_embeddings ({method}): {e}")
+            import traceback
+            traceback.print_exc()
+            # Return a default figure to prevent further errors
+            return plt.figure()
+
     def visualize_with_pca(self, original_embeddings, finetuned_embeddings, loss_type=""):
         """
         Compare original and fine-tuned embeddings using PCA and t-SNE
         """
-        # Create PCA visualization
-        fig_pca_orig = self.visualize_embeddings(
-            original_embeddings, 
-            title="Original Model Embeddings (Before Fine-tuning)",
-            method="pca"
-        )
-        fig_pca_orig.savefig(f"{self.results_dir}/pca_original{loss_type}.png")
-        
-        fig_pca_ft = self.visualize_embeddings(
-            finetuned_embeddings, 
-            title="Fine-tuned Model Embeddings",
-            method="pca"
-        )
-        fig_pca_ft.savefig(f"{self.results_dir}/pca_finetuned{loss_type}.png")
-        
-        # Create t-SNE visualization
-        fig_tsne_orig = self.visualize_embeddings(
-            original_embeddings, 
-            title="Original Model Embeddings (Before Fine-tuning)",
-            method="tsne"
-        )
-        fig_tsne_orig.savefig(f"{self.results_dir}/tsne_original{loss_type}.png")
-        
-        fig_tsne_ft = self.visualize_embeddings(
-            finetuned_embeddings, 
-            title="Fine-tuned Model Embeddings",
-            method="tsne"
-        )
-        fig_tsne_ft.savefig(f"{self.results_dir}/tsne_finetuned{loss_type}.png")
-        
-        # Create side-by-side comparison
-        fig, axes = plt.subplots(2, 2, figsize=(20, 16))
-        
-        # Define colors and markers
-        colors = {
-            "english": "blue",
-            "etok": "green",
-            "ktoe": "red",
-            "korean": "purple"
-        }
-        
-        markers = {
-            "english": "o",
-            "etok": "s",
-            "ktoe": "^",
-            "korean": "D"
-        }
-        
-        # PCA Original
-        for lang, embs in original_embeddings.items():
-            pca = PCA(n_components=2)
-            reduced = pca.fit_transform(embs)
-            axes[0, 0].scatter(
-                reduced[:, 0], reduced[:, 1],
-                color=colors[lang],
-                marker=markers[lang],
-                label=lang.capitalize(),
-                alpha=0.7,
-                s=70
+        try:
+            # Verify results directory exists and is writable
+            if not os.path.exists(self.results_dir):
+                print(f"Creating results directory: {self.results_dir}")
+                os.makedirs(self.results_dir, exist_ok=True)
+            
+            # Test write permissions
+            test_file = os.path.join(self.results_dir, "test_write.txt")
+            try:
+                with open(test_file, 'w') as f:
+                    f.write("Test write")
+                os.remove(test_file)
+                print(f"Directory {self.results_dir} is writable")
+            except Exception as e:
+                print(f"Warning: Cannot write to directory {self.results_dir}: {e}")
+                print(f"Trying to use current directory instead")
+                self.results_dir = "."
+            
+            # Print dimensions of embeddings for debugging
+            for key in original_embeddings:
+                print(f"Original {key} embeddings shape: {original_embeddings[key].shape}")
+            for key in finetuned_embeddings:
+                print(f"Finetuned {key} embeddings shape: {finetuned_embeddings[key].shape}")
+            
+            # Create PCA visualization
+            print(f"\nGenerating PCA plot for original embeddings...")
+            fig_pca_orig = self.visualize_embeddings(
+                original_embeddings, 
+                title="Original Model Embeddings (Before Fine-tuning)",
+                method="pca"
             )
-        axes[0, 0].set_title("Original Model - PCA", fontsize=14)
-        axes[0, 0].grid(True, linestyle='--', alpha=0.3)
-        axes[0, 0].legend(fontsize=10)
-        
-        # PCA Fine-tuned
-        for lang, embs in finetuned_embeddings.items():
-            pca = PCA(n_components=2)
-            reduced = pca.fit_transform(embs)
-            axes[0, 1].scatter(
-                reduced[:, 0], reduced[:, 1],
-                color=colors[lang],
-                marker=markers[lang],
-                label=lang.capitalize(),
-                alpha=0.7,
-                s=70
+            save_path = f"{self.results_dir}/pca_original{loss_type}.png"
+            print(f"Saving PCA plot to {save_path}")
+            try:
+                fig_pca_orig.savefig(save_path)
+                print(f"Successfully saved PCA plot to {save_path}")
+            except Exception as e:
+                print(f"Error saving PCA plot to {save_path}: {e}")
+            
+            print(f"\nGenerating PCA plot for finetuned embeddings...")
+            fig_pca_ft = self.visualize_embeddings(
+                finetuned_embeddings, 
+                title="Fine-tuned Model Embeddings",
+                method="pca"
             )
-        axes[0, 1].set_title("Fine-tuned Model - PCA", fontsize=14)
-        axes[0, 1].grid(True, linestyle='--', alpha=0.3)
-        axes[0, 1].legend(fontsize=10)
-        
-        # t-SNE Original
-        all_embs_orig = np.vstack([original_embeddings[k] for k in original_embeddings])
-        tsne = TSNE(n_components=2, perplexity=30, n_iter=1000, random_state=42)
-        reduced_orig = tsne.fit_transform(all_embs_orig)
-        
-        start_idx = 0
-        for lang, embs in original_embeddings.items():
-            end_idx = start_idx + embs.shape[0]
-            axes[1, 0].scatter(
-                reduced_orig[start_idx:end_idx, 0], 
-                reduced_orig[start_idx:end_idx, 1],
-                color=colors[lang],
-                marker=markers[lang],
-                label=lang.capitalize(),
-                alpha=0.7,
-                s=70
+            save_path = f"{self.results_dir}/pca_finetuned{loss_type}.png"
+            print(f"Saving PCA plot to {save_path}")
+            try:
+                fig_pca_ft.savefig(save_path)
+                print(f"Successfully saved PCA plot to {save_path}")
+            except Exception as e:
+                print(f"Error saving PCA plot to {save_path}: {e}")
+            
+            # Create t-SNE visualization
+            print(f"\nGenerating t-SNE plot for original embeddings...")
+            fig_tsne_orig = self.visualize_embeddings(
+                original_embeddings, 
+                title="Original Model Embeddings (Before Fine-tuning)",
+                method="tsne"
             )
-            start_idx = end_idx
-        axes[1, 0].set_title("Original Model - t-SNE", fontsize=14)
-        axes[1, 0].grid(True, linestyle='--', alpha=0.3)
-        axes[1, 0].legend(fontsize=10)
-        
-        # t-SNE Fine-tuned
-        all_embs_ft = np.vstack([finetuned_embeddings[k] for k in finetuned_embeddings])
-        tsne = TSNE(n_components=2, perplexity=30, n_iter=1000, random_state=42)
-        reduced_ft = tsne.fit_transform(all_embs_ft)
-        
-        start_idx = 0
-        for lang, embs in finetuned_embeddings.items():
-            end_idx = start_idx + embs.shape[0]
-            axes[1, 1].scatter(
-                reduced_ft[start_idx:end_idx, 0], 
-                reduced_ft[start_idx:end_idx, 1],
-                color=colors[lang],
-                marker=markers[lang],
-                label=lang.capitalize(),
-                alpha=0.7,
-                s=70
+            save_path = f"{self.results_dir}/tsne_original{loss_type}.png"
+            print(f"Saving t-SNE plot to {save_path}")
+            try:
+                fig_tsne_orig.savefig(save_path)
+                print(f"Successfully saved t-SNE plot to {save_path}")
+            except Exception as e:
+                print(f"Error saving t-SNE plot to {save_path}: {e}")
+            
+            print(f"\nGenerating t-SNE plot for finetuned embeddings...")
+            fig_tsne_ft = self.visualize_embeddings(
+                finetuned_embeddings, 
+                title="Fine-tuned Model Embeddings",
+                method="tsne"
             )
-            start_idx = end_idx
-        axes[1, 1].set_title("Fine-tuned Model - t-SNE", fontsize=14)
-        axes[1, 1].grid(True, linestyle='--', alpha=0.3)
-        axes[1, 1].legend(fontsize=10)
+            save_path = f"{self.results_dir}/tsne_finetuned{loss_type}.png"
+            print(f"Saving t-SNE plot to {save_path}")
+            try:
+                fig_tsne_ft.savefig(save_path)
+                print(f"Successfully saved t-SNE plot to {save_path}")
+            except Exception as e:
+                print(f"Error saving t-SNE plot to {save_path}: {e}")
+            
+            # Create side-by-side comparison
+            print("\nGenerating side-by-side comparison plots...")
+            fig, axes = plt.subplots(2, 2, figsize=(20, 16))
+            
+            # Define colors and markers
+            colors = {
+                "english": "blue",
+                "etok": "green",
+                "ktoe": "red",
+                "korean": "purple"
+            }
+            
+            markers = {
+                "english": "o",
+                "etok": "s",
+                "ktoe": "^",
+                "korean": "D"
+            }
+            
+            try:
+                # PCA Original
+                print("Processing PCA for original model...")
+                for lang, embs in original_embeddings.items():
+                    pca = PCA(n_components=2)
+                    reduced = pca.fit_transform(embs)
+                    axes[0, 0].scatter(
+                        reduced[:, 0], reduced[:, 1],
+                        color=colors[lang],
+                        marker=markers[lang],
+                        label=lang.capitalize(),
+                        alpha=0.7,
+                        s=70
+                    )
+                axes[0, 0].set_title("Original Model - PCA", fontsize=14)
+                axes[0, 0].grid(True, linestyle='--', alpha=0.3)
+                axes[0, 0].legend(fontsize=10)
+                
+                # PCA Fine-tuned
+                print("Processing PCA for fine-tuned model...")
+                for lang, embs in finetuned_embeddings.items():
+                    pca = PCA(n_components=2)
+                    reduced = pca.fit_transform(embs)
+                    axes[0, 1].scatter(
+                        reduced[:, 0], reduced[:, 1],
+                        color=colors[lang],
+                        marker=markers[lang],
+                        label=lang.capitalize(),
+                        alpha=0.7,
+                        s=70
+                    )
+                axes[0, 1].set_title("Fine-tuned Model - PCA", fontsize=14)
+                axes[0, 1].grid(True, linestyle='--', alpha=0.3)
+                axes[0, 1].legend(fontsize=10)
+                
+                # t-SNE Original
+                print("Processing t-SNE for original model...")
+                all_embs_orig = np.vstack([original_embeddings[k] for k in original_embeddings])
+                tsne = TSNE(n_components=2, perplexity=30, n_iter=1000, random_state=42)
+                reduced_orig = tsne.fit_transform(all_embs_orig)
+                
+                start_idx = 0
+                for lang, embs in original_embeddings.items():
+                    end_idx = start_idx + embs.shape[0]
+                    axes[1, 0].scatter(
+                        reduced_orig[start_idx:end_idx, 0], 
+                        reduced_orig[start_idx:end_idx, 1],
+                        color=colors[lang],
+                        marker=markers[lang],
+                        label=lang.capitalize(),
+                        alpha=0.7,
+                        s=70
+                    )
+                    start_idx = end_idx
+                axes[1, 0].set_title("Original Model - t-SNE", fontsize=14)
+                axes[1, 0].grid(True, linestyle='--', alpha=0.3)
+                axes[1, 0].legend(fontsize=10)
+                
+                # t-SNE Fine-tuned
+                print("Processing t-SNE for fine-tuned model...")
+                all_embs_ft = np.vstack([finetuned_embeddings[k] for k in finetuned_embeddings])
+                tsne = TSNE(n_components=2, perplexity=30, n_iter=1000, random_state=42)
+                reduced_ft = tsne.fit_transform(all_embs_ft)
+                
+                start_idx = 0
+                for lang, embs in finetuned_embeddings.items():
+                    end_idx = start_idx + embs.shape[0]
+                    axes[1, 1].scatter(
+                        reduced_ft[start_idx:end_idx, 0], 
+                        reduced_ft[start_idx:end_idx, 1],
+                        color=colors[lang],
+                        marker=markers[lang],
+                        label=lang.capitalize(),
+                        alpha=0.7,
+                        s=70
+                    )
+                    start_idx = end_idx
+                axes[1, 1].set_title("Fine-tuned Model - t-SNE", fontsize=14)
+                axes[1, 1].grid(True, linestyle='--', alpha=0.3)
+                axes[1, 1].legend(fontsize=10)
+                
+                plt.suptitle(f"Comparing Embeddings Before and After Fine-tuning ({loss_type})", fontsize=18)
+                plt.tight_layout()
+                plt.subplots_adjust(top=0.94)
+                
+                save_path = f"{self.results_dir}/embedding_comparison_{loss_type}.png"
+                print(f"Saving comparison plot to {save_path}")
+                plt.savefig(save_path, dpi=300)
+                print(f"Successfully saved comparison plot to {save_path}")
+                plt.close()
+            
+            except Exception as e:
+                print(f"Error creating comparison plots: {e}")
+                import traceback
+                traceback.print_exc()
+            
+            # Calculate and report average distances
+            print("\nCalculating average L2 distances...")
+            print("Before fine-tuning:")
+            before_distances = {}
+            for lang1 in original_embeddings:
+                for lang2 in original_embeddings:
+                    if lang1 < lang2:  # To avoid duplicates
+                        try:
+                            avg_dist = np.mean(np.linalg.norm(
+                                original_embeddings[lang1] - original_embeddings[lang2], axis=1
+                            ))
+                            before_distances[f"{lang1}-{lang2}"] = avg_dist
+                            print(f"  {lang1} to {lang2}: {avg_dist:.4f}")
+                        except Exception as e:
+                            print(f"  Error calculating distance from {lang1} to {lang2}: {e}")
+            
+            print("\nAfter fine-tuning:")
+            after_distances = {}
+            for lang1 in finetuned_embeddings:
+                for lang2 in finetuned_embeddings:
+                    if lang1 < lang2:  # To avoid duplicates
+                        try:
+                            avg_dist = np.mean(np.linalg.norm(
+                                finetuned_embeddings[lang1] - finetuned_embeddings[lang2], axis=1
+                            ))
+                            after_distances[f"{lang1}-{lang2}"] = avg_dist
+                            print(f"  {lang1} to {lang2}: {avg_dist:.4f}")
+                        except Exception as e:
+                            print(f"  Error calculating distance from {lang1} to {lang2}: {e}")
+            
+            # Save distances to CSV
+            try:
+                print("\nCreating distance comparison plot...")
+                distances_before = []
+                distances_after = []
+                pairs = []
+                
+                for lang1 in original_embeddings:
+                    for lang2 in original_embeddings:
+                        if lang1 < lang2:
+                            pair = f"{lang1}-{lang2}"
+                            pairs.append(pair)
+                            distances_before.append(before_distances.get(pair, 0))
+                            distances_after.append(after_distances.get(pair, 0))
+                
+                # Create distance comparison plot
+                plt.figure(figsize=(12, 6))
+                x = np.arange(len(pairs))
+                width = 0.35
+                
+                plt.bar(x - width/2, distances_before, width, label='Before Fine-tuning')
+                plt.bar(x + width/2, distances_after, width, label='After Fine-tuning')
+                
+                plt.xlabel('Language Pairs')
+                plt.ylabel('Average L2 Distance')
+                plt.title(f'Distance Between Embeddings ({loss_type})')
+                plt.xticks(x, pairs, rotation=45)
+                plt.legend()
+                plt.tight_layout()
+                
+                save_path = f"{self.results_dir}/distance_comparison_{loss_type}.png"
+                print(f"Saving distance comparison plot to {save_path}")
+                plt.savefig(save_path)
+                print(f"Successfully saved distance comparison plot to {save_path}")
+                plt.close()
+                
+                # Save distances to text file as backup
+                with open(f"{self.results_dir}/distances_{loss_type}.txt", 'w') as f:
+                    f.write("Pair,Before,After,Change\n")
+                    for i, pair in enumerate(pairs):
+                        before = distances_before[i]
+                        after = distances_after[i]
+                        change = after - before
+                        f.write(f"{pair},{before:.4f},{after:.4f},{change:.4f}\n")
+                        
+                print(f"Saved distance data to {self.results_dir}/distances_{loss_type}.txt")
+                
+            except Exception as e:
+                print(f"Error creating distance comparison: {e}")
+                import traceback
+                traceback.print_exc()
+            
+            # Return embedding statistics for further analysis
+            stats = {
+                "pairs": pairs,
+                "before": distances_before,
+                "after": distances_after,
+                "change": [(after - before) for before, after in zip(distances_before, distances_after)]
+            }
+            
+            return stats
         
-        plt.suptitle(f"Comparing Embeddings Before and After Fine-tuning ({loss_type})", fontsize=18)
-        plt.tight_layout()
-        plt.subplots_adjust(top=0.94)
-        plt.savefig(f"{self.results_dir}/embedding_comparison_{loss_type}.png", dpi=300)
-        plt.close()
+        except Exception as e:
+            print(f"Error in visualize_with_pca: {e}")
+            import traceback
+            traceback.print_exc()
+            return {"error": str(e)}
+
+    # def visualize_embeddings(self, embeddings, title="Embeddings Visualization", method="pca"):
+    #     """
+    #     Visualize embeddings using dimensionality reduction
         
-        # Calculate and report average distances
-        print("\nAverage L2 distances:")
-        print("Before fine-tuning:")
-        for lang1 in original_embeddings:
-            for lang2 in original_embeddings:
-                if lang1 < lang2:  # To avoid duplicates
-                    avg_dist = np.mean(np.linalg.norm(
-                        original_embeddings[lang1] - original_embeddings[lang2], axis=1
-                    ))
-                    print(f"  {lang1} to {lang2}: {avg_dist:.4f}")
+    #     Args:
+    #         embeddings: Dictionary of embeddings
+    #         title: Title for the plot
+    #         method: 'pca' or 'tsne'
+    #     """
+    #     # Stack all embeddings
+    #     stacked_embs = np.vstack([embeddings[k] for k in embeddings])
         
-        print("\nAfter fine-tuning:")
-        for lang1 in finetuned_embeddings:
-            for lang2 in finetuned_embeddings:
-                if lang1 < lang2:  # To avoid duplicates
-                    avg_dist = np.mean(np.linalg.norm(
-                        finetuned_embeddings[lang1] - finetuned_embeddings[lang2], axis=1
-                    ))
-                    print(f"  {lang1} to {lang2}: {avg_dist:.4f}")
+    #     # Apply dimensionality reduction
+    #     if method == "pca":
+    #         reducer = PCA(n_components=2)
+    #         reduced_embs = reducer.fit_transform(stacked_embs)
+    #         explained_var = reducer.explained_variance_ratio_
+    #         method_name = "PCA"
+    #         subtitle = f"(Explained variance: {explained_var[0]:.2%}, {explained_var[1]:.2%})"
+    #     elif method == "tsne":
+    #         reducer = TSNE(n_components=2, perplexity=30, n_iter=1000, random_state=42)
+    #         reduced_embs = reducer.fit_transform(stacked_embs)
+    #         method_name = "t-SNE"
+    #         subtitle = ""
+    #     else:
+    #         raise ValueError(f"Unknown visualization method: {method}")
         
-        # Save distances to CSV
-        distances_before = []
-        distances_after = []
-        pairs = []
+    #     # Split reduced embeddings back by language
+    #     start_idx = 0
+    #     reduced_by_lang = {}
+    #     for lang, embs in embeddings.items():
+    #         end_idx = start_idx + embs.shape[0]
+    #         reduced_by_lang[lang] = reduced_embs[start_idx:end_idx]
+    #         start_idx = end_idx
         
-        for lang1 in original_embeddings:
-            for lang2 in original_embeddings:
-                if lang1 < lang2:
-                    pairs.append(f"{lang1}-{lang2}")
-                    distances_before.append(np.mean(np.linalg.norm(
-                        original_embeddings[lang1] - original_embeddings[lang2], axis=1
-                    )))
-                    distances_after.append(np.mean(np.linalg.norm(
-                        finetuned_embeddings[lang1] - finetuned_embeddings[lang2], axis=1
-                    )))
+    #     # Plotting
+    #     plt.figure(figsize=(10, 8))
         
-        # Create distance comparison plot
-        plt.figure(figsize=(12, 6))
-        x = np.arange(len(pairs))
-        width = 0.35
+    #     # Define colors and markers
+    #     colors = {
+    #         "english": "blue",
+    #         "etok": "green",
+    #         "ktoe": "red",
+    #         "korean": "purple"
+    #     }
         
-        plt.bar(x - width/2, distances_before, width, label='Before Fine-tuning')
-        plt.bar(x + width/2, distances_after, width, label='After Fine-tuning')
+    #     markers = {
+    #         "english": "o",
+    #         "etok": "s",
+    #         "ktoe": "^",
+    #         "korean": "D"
+    #     }
         
-        plt.xlabel('Language Pairs')
-        plt.ylabel('Average L2 Distance')
-        plt.title(f'Distance Between Embeddings ({loss_type})')
-        plt.xticks(x, pairs, rotation=45)
-        plt.legend()
-        plt.tight_layout()
-        plt.savefig(f"{self.results_dir}/distance_comparison_{loss_type}.png")
-        plt.close()
+    #     # Plot each language variant
+    #     for lang, embs in reduced_by_lang.items():
+    #         plt.scatter(
+    #             embs[:, 0], embs[:, 1],
+    #             color=colors[lang],
+    #             marker=markers[lang],
+    #             label=lang.capitalize(),
+    #             alpha=0.7,
+    #             s=70
+    #         )
         
-        # Return embedding statistics for further analysis
-        stats = {
-            "pairs": pairs,
-            "before": distances_before,
-            "after": distances_after,
-            "change": [(after - before) for before, after in zip(distances_before, distances_after)]
-        }
+    #     plt.title(f"{title}\n{method_name} {subtitle}", fontsize=15)
+    #     plt.xlabel(f"{method_name} Component 1", fontsize=12)
+    #     plt.ylabel(f"{method_name} Component 2", fontsize=12)
+    #     plt.grid(True, linestyle='--', alpha=0.3)
+    #     plt.legend(fontsize=10)
+    #     plt.tight_layout()
         
-        return stats
+    #     return plt
+    
+    # def visualize_with_pca(self, original_embeddings, finetuned_embeddings, loss_type=""):
+    #     """
+    #     Compare original and fine-tuned embeddings using PCA and t-SNE
+    #     """
+    #     # Create PCA visualization
+    #     fig_pca_orig = self.visualize_embeddings(
+    #         original_embeddings, 
+    #         title="Original Model Embeddings (Before Fine-tuning)",
+    #         method="pca"
+    #     )
+    #     fig_pca_orig.savefig(f"{self.results_dir}/pca_original{loss_type}.png")
+        
+    #     fig_pca_ft = self.visualize_embeddings(
+    #         finetuned_embeddings, 
+    #         title="Fine-tuned Model Embeddings",
+    #         method="pca"
+    #     )
+    #     fig_pca_ft.savefig(f"{self.results_dir}/pca_finetuned{loss_type}.png")
+        
+    #     # Create t-SNE visualization
+    #     fig_tsne_orig = self.visualize_embeddings(
+    #         original_embeddings, 
+    #         title="Original Model Embeddings (Before Fine-tuning)",
+    #         method="tsne"
+    #     )
+    #     fig_tsne_orig.savefig(f"{self.results_dir}/tsne_original{loss_type}.png")
+        
+    #     fig_tsne_ft = self.visualize_embeddings(
+    #         finetuned_embeddings, 
+    #         title="Fine-tuned Model Embeddings",
+    #         method="tsne"
+    #     )
+    #     fig_tsne_ft.savefig(f"{self.results_dir}/tsne_finetuned{loss_type}.png")
+        
+    #     # Create side-by-side comparison
+    #     fig, axes = plt.subplots(2, 2, figsize=(20, 16))
+        
+    #     # Define colors and markers
+    #     colors = {
+    #         "english": "blue",
+    #         "etok": "green",
+    #         "ktoe": "red",
+    #         "korean": "purple"
+    #     }
+        
+    #     markers = {
+    #         "english": "o",
+    #         "etok": "s",
+    #         "ktoe": "^",
+    #         "korean": "D"
+    #     }
+        
+    #     # PCA Original
+    #     for lang, embs in original_embeddings.items():
+    #         pca = PCA(n_components=2)
+    #         reduced = pca.fit_transform(embs)
+    #         axes[0, 0].scatter(
+    #             reduced[:, 0], reduced[:, 1],
+    #             color=colors[lang],
+    #             marker=markers[lang],
+    #             label=lang.capitalize(),
+    #             alpha=0.7,
+    #             s=70
+    #         )
+    #     axes[0, 0].set_title("Original Model - PCA", fontsize=14)
+    #     axes[0, 0].grid(True, linestyle='--', alpha=0.3)
+    #     axes[0, 0].legend(fontsize=10)
+        
+    #     # PCA Fine-tuned
+    #     for lang, embs in finetuned_embeddings.items():
+    #         pca = PCA(n_components=2)
+    #         reduced = pca.fit_transform(embs)
+    #         axes[0, 1].scatter(
+    #             reduced[:, 0], reduced[:, 1],
+    #             color=colors[lang],
+    #             marker=markers[lang],
+    #             label=lang.capitalize(),
+    #             alpha=0.7,
+    #             s=70
+    #         )
+    #     axes[0, 1].set_title("Fine-tuned Model - PCA", fontsize=14)
+    #     axes[0, 1].grid(True, linestyle='--', alpha=0.3)
+    #     axes[0, 1].legend(fontsize=10)
+        
+    #     # t-SNE Original
+    #     all_embs_orig = np.vstack([original_embeddings[k] for k in original_embeddings])
+    #     tsne = TSNE(n_components=2, perplexity=30, n_iter=1000, random_state=42)
+    #     reduced_orig = tsne.fit_transform(all_embs_orig)
+        
+    #     start_idx = 0
+    #     for lang, embs in original_embeddings.items():
+    #         end_idx = start_idx + embs.shape[0]
+    #         axes[1, 0].scatter(
+    #             reduced_orig[start_idx:end_idx, 0], 
+    #             reduced_orig[start_idx:end_idx, 1],
+    #             color=colors[lang],
+    #             marker=markers[lang],
+    #             label=lang.capitalize(),
+    #             alpha=0.7,
+    #             s=70
+    #         )
+    #         start_idx = end_idx
+    #     axes[1, 0].set_title("Original Model - t-SNE", fontsize=14)
+    #     axes[1, 0].grid(True, linestyle='--', alpha=0.3)
+    #     axes[1, 0].legend(fontsize=10)
+        
+    #     # t-SNE Fine-tuned
+    #     all_embs_ft = np.vstack([finetuned_embeddings[k] for k in finetuned_embeddings])
+    #     tsne = TSNE(n_components=2, perplexity=30, n_iter=1000, random_state=42)
+    #     reduced_ft = tsne.fit_transform(all_embs_ft)
+        
+    #     start_idx = 0
+    #     for lang, embs in finetuned_embeddings.items():
+    #         end_idx = start_idx + embs.shape[0]
+    #         axes[1, 1].scatter(
+    #             reduced_ft[start_idx:end_idx, 0], 
+    #             reduced_ft[start_idx:end_idx, 1],
+    #             color=colors[lang],
+    #             marker=markers[lang],
+    #             label=lang.capitalize(),
+    #             alpha=0.7,
+    #             s=70
+    #         )
+    #         start_idx = end_idx
+    #     axes[1, 1].set_title("Fine-tuned Model - t-SNE", fontsize=14)
+    #     axes[1, 1].grid(True, linestyle='--', alpha=0.3)
+    #     axes[1, 1].legend(fontsize=10)
+        
+    #     plt.suptitle(f"Comparing Embeddings Before and After Fine-tuning ({loss_type})", fontsize=18)
+    #     plt.tight_layout()
+    #     plt.subplots_adjust(top=0.94)
+    #     plt.savefig(f"{self.results_dir}/embedding_comparison_{loss_type}.png", dpi=300)
+    #     plt.close()
+        
+    #     # Calculate and report average distances
+    #     print("\nAverage L2 distances:")
+    #     print("Before fine-tuning:")
+    #     for lang1 in original_embeddings:
+    #         for lang2 in original_embeddings:
+    #             if lang1 < lang2:  # To avoid duplicates
+    #                 avg_dist = np.mean(np.linalg.norm(
+    #                     original_embeddings[lang1] - original_embeddings[lang2], axis=1
+    #                 ))
+    #                 print(f"  {lang1} to {lang2}: {avg_dist:.4f}")
+        
+    #     print("\nAfter fine-tuning:")
+    #     for lang1 in finetuned_embeddings:
+    #         for lang2 in finetuned_embeddings:
+    #             if lang1 < lang2:  # To avoid duplicates
+    #                 avg_dist = np.mean(np.linalg.norm(
+    #                     finetuned_embeddings[lang1] - finetuned_embeddings[lang2], axis=1
+    #                 ))
+    #                 print(f"  {lang1} to {lang2}: {avg_dist:.4f}")
+        
+    #     # Save distances to CSV
+    #     distances_before = []
+    #     distances_after = []
+    #     pairs = []
+        
+    #     for lang1 in original_embeddings:
+    #         for lang2 in original_embeddings:
+    #             if lang1 < lang2:
+    #                 pairs.append(f"{lang1}-{lang2}")
+    #                 distances_before.append(np.mean(np.linalg.norm(
+    #                     original_embeddings[lang1] - original_embeddings[lang2], axis=1
+    #                 )))
+    #                 distances_after.append(np.mean(np.linalg.norm(
+    #                     finetuned_embeddings[lang1] - finetuned_embeddings[lang2], axis=1
+    #                 )))
+        
+    #     # Create distance comparison plot
+    #     plt.figure(figsize=(12, 6))
+    #     x = np.arange(len(pairs))
+    #     width = 0.35
+        
+    #     plt.bar(x - width/2, distances_before, width, label='Before Fine-tuning')
+    #     plt.bar(x + width/2, distances_after, width, label='After Fine-tuning')
+        
+    #     plt.xlabel('Language Pairs')
+    #     plt.ylabel('Average L2 Distance')
+    #     plt.title(f'Distance Between Embeddings ({loss_type})')
+    #     plt.xticks(x, pairs, rotation=45)
+    #     plt.legend()
+    #     plt.tight_layout()
+    #     plt.savefig(f"{self.results_dir}/distance_comparison_{loss_type}.png")
+    #     plt.close()
+        
+    #     # Return embedding statistics for further analysis
+    #     stats = {
+    #         "pairs": pairs,
+    #         "before": distances_before,
+    #         "after": distances_after,
+    #         "change": [(after - before) for before, after in zip(distances_before, distances_after)]
+    #     }
+        
+    #     return stats
 
 # Main function to execute the pipeline
 def main():
     # Load data
     print("Loading data...")
-    with open("code-switch.json", "r", encoding="UTF-8") as f:
+    with open("data/code-switch.json", "r", encoding="UTF-8") as f:
         data_list = json.load(f)
     
     # Initialize finetuner
@@ -887,7 +1377,7 @@ def main():
     # For comparison, fine-tune with different loss functions
     loss_types = ["refined", "custom", "codeswitch"]
     loss_type = loss_types[0]
-
+    
     finetuner = EmbeddingFinetuner()
     loss_history = finetuner.finetune(dataloader, loss_type=loss_type, num_epochs=10, lr=1e-5)
         
