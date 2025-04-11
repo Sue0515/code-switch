@@ -1,0 +1,13 @@
+{
+    "query_file": "data/code-switch.json",
+    "output_dir": "./rag_results",
+    "base_model_name": "BAAI/bge-m3",
+    "finetuned_model_path": "results/final_model",
+    "device": "cuda",
+    "use_wikipedia": true,
+    "wikipedia_langs": ["en", "ko"],
+    "documents_per_query": 5,
+    "save_corpus": true,
+    "top_k": 10,
+    "visualization": true
+  }
